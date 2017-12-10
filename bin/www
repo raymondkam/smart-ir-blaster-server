@@ -4,31 +4,79 @@
  * Module dependencies.
  */
 
-var app = require('../app');
-var debug = require('debug')('express-websocket-server:server');
-var https = require('https');
-var fs = require('fs');
-var path = require('path');
+const app = require('../app');
+const debug = require('debug')('express-websocket-server:server');
+const https = require('https');
 
-var privateKeyPath = path.join(__dirname, '..', 'sslcert', 'key.pem');
-var certificatePath = path.join(__dirname, '..', 'sslcert', 'cert.pem');
-var privateKey  = fs.readFileSync(privateKeyPath, 'utf8');
-var certificate = fs.readFileSync(certificatePath, 'utf8');
+const WebSocket = require('ws');
+const wsConfig = require('../config/websocket.json');
 
-var credentials = {key: privateKey, cert: certificate};
+const fs = require('fs');
+const path = require('path');
+const privateKeyPath = path.join(__dirname, '..', 'sslcert', 'key.pem');
+const certificatePath = path.join(__dirname, '..', 'sslcert', 'cert.pem');
+const privateKey  = fs.readFileSync(privateKeyPath, 'utf8');
+const certificate = fs.readFileSync(certificatePath, 'utf8');
+
+const credentials = {key: privateKey, cert: certificate};
+
+const api = require('../routes/api');
 
 /**
  * Get port from environment and store in Express.
  */
 
-var port = normalizePort(process.env.PORT || '8080');
+const port = normalizePort(process.env.PORT || '8080');
 app.set('port', port);
 
 /**
  * Create HTTPS server.
  */
 
-var server = https.createServer(credentials, app);
+const server = https.createServer(credentials, app);
+
+/**
+ * WebSocket setup
+ */
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', function connection(ws, req) {
+    // TODO: check to see if it is the ip of the raspberry pi/your home public ip
+    // const ip = req.connection.remoteAddress;
+    // console.log("ip address 1: ", req.ip);
+
+    ws.on('message', function incoming(message) {
+        const messageJSON = JSON.parse(message);
+        if (messageJSON.token === wsConfig.token && messageJSON.type === "auth") {
+            console.log('new valid ws client connected');
+            api.setWsClient(ws);
+
+            ws.send(JSON.stringify(
+                {
+                    "type": "auth",
+                    "message": "success"
+                }
+            ));
+
+            ws.on('message', function incoming(message) {
+                console.log("received subsequent message from trusted client: " + message);
+            });
+            ws.on('close', function close() {
+                console.log('websocket connection closed');
+                api.setWsClient(null);
+            });
+        } else {
+            ws.send(JSON.stringify(
+                {
+                    "type": "auth",
+                    "message": "failure"
+                }
+            ));
+            console.log('failed to auth, close connection');
+            ws.close(1003, "Missing or bad token");
+        }
+    });
+});
 
 /**
  * Listen on provided port, on all network interfaces.
@@ -43,7 +91,7 @@ server.on('listening', onListening);
  */
 
 function normalizePort(val) {
-  var port = parseInt(val, 10);
+  const port = parseInt(val, 10);
 
   if (isNaN(port)) {
     // named pipe
@@ -67,7 +115,7 @@ function onError(error) {
     throw error;
   }
 
-  var bind = typeof port === 'string'
+  const bind = typeof port === 'string'
     ? 'Pipe ' + port
     : 'Port ' + port;
 
@@ -91,9 +139,11 @@ function onError(error) {
  */
 
 function onListening() {
-  var addr = server.address();
-  var bind = typeof addr === 'string'
+  const addr = server.address();
+  const bind = typeof addr === 'string'
     ? 'pipe ' + addr
     : 'port ' + addr.port;
   debug('Listening on ' + bind);
 }
+
+module.exports = server;
