@@ -1,12 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const apiConfig = require('../config/api.json');
 
 let wsClient = null;
 
 // auth middleware
 const authMiddleware = (req, res, next) => {
-    console.log('middleware function running');
     if (!req.headers.authorization) {
         return res.status(401).send({ error: 'No credentials sent' });
     }
@@ -15,7 +13,7 @@ const authMiddleware = (req, res, next) => {
     const id = decoded.split(':')[0];
     const secret = decoded.split(':')[1];
 
-    if (id !== apiConfig.id || secret !== apiConfig.secret) {
+    if (id !== process.env.API_ID || secret !== process.env.API_SECRET) {
         return res.status(401).send({ error: 'Wrong credentials' });
     }
 
@@ -32,7 +30,12 @@ router.post('/tv', (req, res, next) => {
     let json = req.body;
     if (json != null) {
         if (wsClient) {
-            wsClient.send(JSON.stringify(json));
+            console.log('WS: sending command: ', json);
+            let wsMessage = {
+                "type": "command",
+                "message": json
+            }
+            wsClient.send(JSON.stringify(wsMessage));
         }
         res.status(200).send();
     } else {

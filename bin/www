@@ -6,19 +6,8 @@
 
 const app = require('../app');
 const debug = require('debug')('express-websocket-server:server');
-const https = require('https');
-
+const http = require('http');
 const WebSocket = require('ws');
-const wsConfig = require('../config/websocket.json');
-
-const fs = require('fs');
-const path = require('path');
-const privateKeyPath = path.join(__dirname, '..', 'sslcert', 'key.pem');
-const certificatePath = path.join(__dirname, '..', 'sslcert', 'cert.pem');
-const privateKey  = fs.readFileSync(privateKeyPath, 'utf8');
-const certificate = fs.readFileSync(certificatePath, 'utf8');
-
-const credentials = {key: privateKey, cert: certificate};
 
 const api = require('../routes/api');
 
@@ -30,14 +19,15 @@ const port = normalizePort(process.env.PORT || '8080');
 app.set('port', port);
 
 /**
- * Create HTTPS server.
+ * Create HTTP server.
  */
 
-const server = https.createServer(credentials, app);
+ const server = http.createServer(app);
 
 /**
  * WebSocket setup
  */
+
 const wss = new WebSocket.Server({ server });
 
 wss.on('connection', function connection(ws, req) {
@@ -47,8 +37,8 @@ wss.on('connection', function connection(ws, req) {
 
     ws.on('message', function incoming(message) {
         const messageJSON = JSON.parse(message);
-        if (messageJSON.token === wsConfig.token && messageJSON.type === "auth") {
-            console.log('new valid ws client connected');
+        if (messageJSON.token === process.env.WS_TOKEN && messageJSON.type === "auth") {
+            console.log('WS: new websocket client authenticated');
             api.setWsClient(ws);
 
             ws.send(JSON.stringify(
@@ -58,23 +48,29 @@ wss.on('connection', function connection(ws, req) {
                 }
             ));
 
-            ws.on('message', function incoming(message) {
-                console.log("received subsequent message from trusted client: " + message);
-            });
-            ws.on('close', function close() {
-                console.log('websocket connection closed');
-                api.setWsClient(null);
-            });
+        } else if (messageJSON.token === process.env.WS_TOKEN && messageJSON.type === "ping") {
+            console.log('WS: received ping, sending pong');
+            ws.send(JSON.stringify(
+                {
+                    "type": "pong",
+                    "message": "pong"
+                }
+            ));
         } else {
             ws.send(JSON.stringify(
                 {
                     "type": "auth",
-                    "message": "failure"
+                    "message": "failure or unknown message"
                 }
             ));
-            console.log('failed to auth, close connection');
+            console.log('WS: failed to auth, close connection');
             ws.close(1003, "Missing or bad token");
         }
+    });
+
+    ws.on('close', function close() {
+        console.log('WS: websocket connection closed');
+        api.setWsClient(null);
     });
 });
 
