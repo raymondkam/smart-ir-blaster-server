@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const commandsJSON = require('../config/commands');
 
 let wsClient = null;
 
@@ -27,13 +28,18 @@ router.get('/health', (req, res, next) => {
 })
 
 router.post('/tv', (req, res, next) => {
-    let json = req.body;
-    if (json != null) {
+    let commandId = req.query.commandId;
+    if (commandId != null) {
+        let commandJSON = commandsJSON[commandId];
+        if (commandJSON === null) {
+            return res.status(400).send("Command not recognized");
+        }
+
         if (wsClient) {
-            console.log('WS: sending command: ', json);
+            console.log('WS: sending command: ', commandJSON);
             let wsMessage = {
                 "type": "command",
-                "message": json
+                "message": commandJSON
             }
             wsClient.send(JSON.stringify(wsMessage));
         }
