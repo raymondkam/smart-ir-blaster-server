@@ -30,16 +30,11 @@ router.get('/health', (req, res, next) => {
 router.post('/tv', (req, res, next) => {
     let commandId = req.query.commandId;
     if (commandId != null) {
-        let commandJSON = commandsJSON[commandId];
-        if (commandJSON === null) {
-            return res.status(400).send("Command not recognized");
-        }
-
         if (wsClient) {
-            console.log('WS: sending command: ', commandJSON);
+            console.log('WS: sending command: ', commandId);
             let wsMessage = {
                 "type": "command",
-                "message": commandJSON
+                "message": commandId
             }
             wsClient.send(JSON.stringify(wsMessage));
         }
