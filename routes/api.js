@@ -23,7 +23,7 @@ const authMiddleware = (req, res, next) => {
 router.use(authMiddleware);
 
 router.get('/health', (req, res, next) => {
-    res.send(200);
+    res.sendStatus(200);
 })
 
 router.post('/tv', (req, res, next) => {
@@ -37,9 +37,9 @@ router.post('/tv', (req, res, next) => {
             }
             wsClient.send(JSON.stringify(wsMessage));
         }
-        res.status(200).send();
+        res.sendStatus(200);
     } else {
-        res.status(400).send();
+        res.status(400).send({ error: 'Query parameter commandId is required' });
     }
 })
 
